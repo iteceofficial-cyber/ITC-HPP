@@ -1,0 +1,6 @@
+{
+  "name": "TourCost — Manajemen HPP Paket Tour",
+  "description": "Sistem manajemen perhitungan HPP, simulasi harga, margin keuntungan, dan approval paket open trip & private trip untuk travel agent Indonesia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
