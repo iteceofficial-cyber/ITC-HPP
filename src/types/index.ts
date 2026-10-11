@@ -7,6 +7,7 @@ export interface UserProfile {
   role: UserRole;
   is_active: boolean;
   avatar_url?: string;
+  password?: string; // Kata sandi akun (default: password123)
   created_at: string;
   updated_at: string;
 }

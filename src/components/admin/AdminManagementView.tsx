@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, Shield, Check, X, ShieldAlert, UserCheck } from 'lucide-react';
+import { Users, UserPlus, Shield, Check, X, ShieldAlert, UserCheck, KeyRound, Lock } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { store } from '../../lib/store';
+import { ChangePasswordModal } from '../common/ChangePasswordModal';
 
 export const AdminManagementView: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>(store.getUsers());
@@ -9,6 +10,8 @@ export const AdminManagementView: React.FC = () => {
   const [newName, setNewName] = useState<string>('');
   const [newEmail, setNewEmail] = useState<string>('');
   const [newRole, setNewRole] = useState<UserRole>('admin');
+  const [newUserPassword, setNewUserPassword] = useState<string>('password123');
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState<UserProfile | null>(null);
   const [userMsg, setUserMsg] = useState<{ text: string; isError?: boolean } | null>(null);
 
   const isSuperAdmin = store.isSuperAdmin();
@@ -40,12 +43,13 @@ export const AdminManagementView: React.FC = () => {
       setUserMsg({ text: 'Nama dan email wajib diisi.', isError: true });
       return;
     }
-    const res = store.addUser(newName, newEmail, newRole);
+    const res = store.addUser(newName, newEmail, newRole, newUserPassword || 'password123');
     if (res.success) {
       setUsers(store.getUsers());
       setShowAddModal(false);
       setNewName('');
       setNewEmail('');
+      setNewUserPassword('password123');
       setUserMsg({ text: 'Pengguna baru berhasil ditambahkan dan tersimpan ke database!' });
       setTimeout(() => setUserMsg(null), 3500);
     } else {
@@ -112,6 +116,7 @@ export const AdminManagementView: React.FC = () => {
               <th className="py-3 px-4">Role Akses</th>
               <th className="py-3 px-4 text-center">Status Akun</th>
               <th className="py-3 px-4 text-center">Aksi Role</th>
+              <th className="py-3 px-4 text-center">Keamanan</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -154,6 +159,16 @@ export const AdminManagementView: React.FC = () => {
                     }`}
                   >
                     {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                  </button>
+                </td>
+                <td className="py-3 px-4 text-center">
+                  <button
+                    onClick={() => setSelectedUserForPassword(u)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-blue-700 hover:bg-blue-50 border border-blue-200 transition-colors"
+                    title="Ganti atau reset kata sandi akun staf ini"
+                  >
+                    <KeyRound className="h-3 w-3 text-blue-600" />
+                    <span>Ganti Sandi</span>
                   </button>
                 </td>
               </tr>
@@ -207,6 +222,22 @@ export const AdminManagementView: React.FC = () => {
               </select>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Kata Sandi Awal Akun <span className="text-slate-400 font-normal">(Default: password123)</span>
+              </label>
+              <div className="relative">
+                <Lock className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="password123"
+                  className="w-full bg-white border border-slate-300 rounded p-2 pl-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setShowAddModal(false)}
@@ -223,6 +254,21 @@ export const AdminManagementView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Ganti/Reset Kata Sandi Pengguna */}
+      {selectedUserForPassword && (
+        <ChangePasswordModal
+          isOpen={Boolean(selectedUserForPassword)}
+          onClose={() => setSelectedUserForPassword(null)}
+          targetUser={selectedUserForPassword}
+          isSuperAdminReset={true}
+          onSuccess={() => {
+            setUsers(store.getUsers());
+            setUserMsg({ text: `Kata sandi akun "${selectedUserForPassword.full_name}" berhasil di-reset!` });
+            setTimeout(() => setUserMsg(null), 3500);
+          }}
+        />
       )}
     </div>
   );

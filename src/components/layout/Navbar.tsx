@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Database, Sparkles, UserCheck, Edit3, RefreshCw, LogOut } from 'lucide-react';
+import { Search, Plus, Database, Sparkles, UserCheck, Edit3, RefreshCw, LogOut, KeyRound } from 'lucide-react';
 import { store } from '../../lib/store';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { UserRole } from '../../types';
@@ -10,6 +10,7 @@ interface NavbarProps {
   onCreatePackageClick: () => void;
   onOpenSettingsClick: () => void;
   onOpenBrandModal?: () => void;
+  onOpenChangePasswordModal?: () => void;
   onLogout?: () => void;
 }
 
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onCreatePackageClick,
   onOpenSettingsClick,
   onOpenBrandModal,
+  onOpenChangePasswordModal,
   onLogout,
 }) => {
   const currentUser = store.getCurrentUser();
@@ -124,6 +126,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Paket Baru</span>
+          </button>
+        )}
+
+        {/* Ganti Kata Sandi Button */}
+        {onOpenChangePasswordModal && (
+          <button
+            onClick={onOpenChangePasswordModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 transition-colors"
+            title="Ganti kata sandi akun Anda"
+          >
+            <KeyRound className="h-3.5 w-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Ganti Sandi</span>
           </button>
         )}
 

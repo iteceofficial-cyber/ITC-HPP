@@ -8,6 +8,8 @@ import {
   AlertCircle,
   Sparkles,
   Edit3,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { store } from '../../lib/store';
 import { UserProfile, AppBranding } from '../../types';
@@ -23,6 +25,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   const [email, setEmail] = useState<string>('superadmin@tourcost.id');
   const [password, setPassword] = useState<string>('password123');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [showBrandModal, setShowBrandModal] = useState<boolean>(false);
@@ -40,7 +43,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setError(null);
     setLoading(true);
 
-    const res = await store.login(email);
+    const res = await store.login(email, password);
     setLoading(false);
 
     if (res.success) {
@@ -126,17 +129,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Kata Sandi</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-700">Kata Sandi</label>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Default: password123
+                </span>
+              </div>
               <div className="relative">
                 <Lock className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-md py-2.5 pl-9 pr-3 text-sm focus:border-blue-600 focus:bg-white focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-md py-2.5 pl-9 pr-10 text-sm focus:border-blue-600 focus:bg-white focus:outline-hidden"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 

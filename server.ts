@@ -632,6 +632,7 @@ const INITIAL_DEMO_DATA = {
       full_name: 'Hendra Wijaya (Super Admin)',
       role: 'super_admin',
       is_active: true,
+      password: 'password123',
       avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces',
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
@@ -642,6 +643,7 @@ const INITIAL_DEMO_DATA = {
       full_name: 'Siti Rahmawati (Tour Planner)',
       role: 'admin',
       is_active: true,
+      password: 'password123',
       avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop&crop=faces',
       created_at: '2026-01-10T00:00:00Z',
       updated_at: '2026-01-10T00:00:00Z',
@@ -652,6 +654,7 @@ const INITIAL_DEMO_DATA = {
       full_name: 'Budi Santoso (Finance & Viewer)',
       role: 'viewer',
       is_active: true,
+      password: 'password123',
       avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
       created_at: '2026-01-15T00:00:00Z',
       updated_at: '2026-01-15T00:00:00Z',
@@ -1059,6 +1062,28 @@ app.post('/api/sync', (req, res) => {
     }
   }
 
+  // 5. Merge users (termasuk update status, role, dan kata sandi)
+  if (Array.isArray(incoming.users)) {
+    const userMap = new Map<string, any>();
+    (db.users || []).forEach((u: any) => userMap.set(u.id, u));
+    incoming.users.forEach((incUser: any) => {
+      const existing = userMap.get(incUser.id);
+      if (!existing) {
+        userMap.set(incUser.id, {
+          ...incUser,
+          password: incUser.password || 'password123',
+        });
+      } else {
+        userMap.set(incUser.id, {
+          ...existing,
+          ...incUser,
+          password: incUser.password || existing.password || 'password123',
+        });
+      }
+    });
+    db.users = Array.from(userMap.values());
+  }
+
   writeDatabase(db);
   res.json({
     success: true,
@@ -1070,7 +1095,7 @@ app.post('/api/sync', (req, res) => {
   });
 });
 
-// Autentikasi Pengguna (Login)
+// Autentikasi Pengguna (Login dengan verifikasi kata sandi)
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   const db = readDatabase();
@@ -1082,6 +1107,12 @@ app.post('/api/auth/login', (req, res) => {
   }
   if (!user.is_active) {
     return res.status(403).json({ error: 'Akun Anda dinonaktifkan oleh Super Admin.' });
+  }
+
+  // Verifikasi kata sandi jika dikirimkan
+  const expectedPassword = user.password || 'password123';
+  if (password && password !== expectedPassword) {
+    return res.status(401).json({ error: 'Kata sandi tidak sesuai. Silakan periksa kembali kata sandi Anda.' });
   }
 
   // Catat login ke audit log
@@ -1100,6 +1131,61 @@ app.post('/api/auth/login', (req, res) => {
   writeDatabase(db);
 
   res.json({ success: true, user });
+});
+
+// Fitur Ganti Kata Sandi (Change Password)
+app.post('/api/auth/change-password', (req, res) => {
+  const { userId, currentPassword, newPassword, isSuperAdminReset } = req.body;
+
+  if (!userId || !newPassword) {
+    return res.status(400).json({ error: 'Data pergantian kata sandi tidak lengkap.' });
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.trim().length < 6) {
+    return res.status(400).json({ error: 'Kata sandi baru minimal 6 karakter.' });
+  }
+
+  const db = readDatabase();
+  const user = db.users.find((u: any) => u.id === userId);
+
+  if (!user) {
+    return res.status(404).json({ error: 'Akun pengguna tidak ditemukan dalam database.' });
+  }
+
+  // Jika bukan reset oleh Super Admin, verifikasi kata sandi lama/saat ini
+  if (!isSuperAdminReset) {
+    const existingPassword = user.password || 'password123';
+    if (!currentPassword || currentPassword !== existingPassword) {
+      return res.status(400).json({ error: 'Kata sandi saat ini (lama) tidak sesuai.' });
+    }
+  }
+
+  // Perbarui kata sandi pengguna
+  user.password = newPassword.trim();
+  user.updated_at = new Date().toISOString();
+
+  // Catat pergantian kata sandi ke audit log
+  db.auditLogs.unshift({
+    id: `log-${Date.now()}`,
+    user_id: user.id,
+    user_name: user.full_name,
+    package_id: '',
+    package_code: '',
+    action: isSuperAdminReset ? 'RESET_USER_PASSWORD' : 'CHANGE_PASSWORD',
+    entity_type: 'user',
+    entity_id: user.id,
+    description: isSuperAdminReset
+      ? `Super Admin me-reset kata sandi untuk akun "${user.full_name}"`
+      : `Pengguna "${user.full_name}" berhasil memperbarui kata sandi akunnya`,
+    created_at: new Date().toISOString(),
+  });
+
+  writeDatabase(db);
+  res.json({
+    success: true,
+    message: 'Kata sandi berhasil diperbarui dan tersimpan permanen.',
+    updated_at: user.updated_at,
+  });
 });
 
 // --- FRONTEND INTEGRATION ---

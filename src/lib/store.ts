@@ -258,7 +258,7 @@ class TourCostStore {
     return this.authenticated;
   }
 
-  public async login(email: string): Promise<{ success: boolean; error?: string }> {
+  public async login(email: string, password?: string): Promise<{ success: boolean; error?: string }> {
     const normalized = (email || '').toLowerCase().trim();
     const user = this.users.find((u) => u.email.toLowerCase() === normalized);
 
@@ -269,6 +269,12 @@ class TourCostStore {
       return { success: false, error: 'Akun Anda dinonaktifkan oleh Super Admin.' };
     }
 
+    // Verifikasi kata sandi
+    const expectedPassword = user.password || 'password123';
+    if (password && password !== expectedPassword) {
+      return { success: false, error: 'Kata sandi tidak sesuai. Silakan periksa kembali kata sandi Anda.' };
+    }
+
     this.currentUser = user;
     this.authenticated = true;
     this.persistLocalOnly();
@@ -277,10 +283,124 @@ class TourCostStore {
       await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
+        body: JSON.stringify({ email: user.email, password }),
       });
     } catch (e) {
       console.warn('Login server sync notification failed:', e);
+    }
+
+    return { success: true };
+  }
+
+  // --- FITUR GANTI KATA SANDI (CHANGE PASSWORD) ---
+  public async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!newPassword || newPassword.trim().length < 6) {
+      return { success: false, error: 'Kata sandi baru minimal harus 6 karakter.' };
+    }
+
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      return { success: false, error: 'Akun pengguna tidak ditemukan.' };
+    }
+
+    const existingPassword = user.password || 'password123';
+    if (currentPassword !== existingPassword) {
+      return { success: false, error: 'Kata sandi saat ini (lama) tidak sesuai.' };
+    }
+
+    // Update password pengguna
+    user.password = newPassword.trim();
+    user.updated_at = new Date().toISOString();
+
+    if (this.currentUser.id === userId) {
+      this.currentUser = { ...user };
+    }
+
+    this.logAudit({
+      user_id: this.currentUser.id,
+      user_name: this.currentUser.full_name,
+      action: 'CHANGE_PASSWORD',
+      entity_type: 'user',
+      entity_id: userId,
+      description: `Pengguna "${user.full_name}" berhasil memperbarui kata sandi akun`,
+    });
+
+    // Simpan lokal instan & kirim ke server backend database
+    this.persistLocalOnly();
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          currentPassword,
+          newPassword: newPassword.trim(),
+          isSuperAdminReset: false,
+        }),
+      });
+      if (res.ok) {
+        this.isServerConnected = true;
+        this.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      }
+    } catch (err) {
+      console.warn('Gagal sinkronisasi ganti password ke server:', err);
+    }
+
+    return { success: true };
+  }
+
+  public async resetUserPasswordByAdmin(
+    userId: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.isSuperAdmin()) {
+      return { success: false, error: 'Hanya Super Admin yang berhak me-reset kata sandi staf.' };
+    }
+
+    if (!newPassword || newPassword.trim().length < 6) {
+      return { success: false, error: 'Kata sandi baru minimal harus 6 karakter.' };
+    }
+
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      return { success: false, error: 'Akun pengguna tidak ditemukan.' };
+    }
+
+    user.password = newPassword.trim();
+    user.updated_at = new Date().toISOString();
+
+    if (this.currentUser.id === userId) {
+      this.currentUser = { ...user };
+    }
+
+    this.logAudit({
+      user_id: this.currentUser.id,
+      user_name: this.currentUser.full_name,
+      action: 'RESET_USER_PASSWORD',
+      entity_type: 'user',
+      entity_id: userId,
+      description: `Super Admin me-reset kata sandi untuk akun "${user.full_name}"`,
+    });
+
+    this.persistLocalOnly();
+
+    try {
+      await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          newPassword: newPassword.trim(),
+          isSuperAdminReset: true,
+        }),
+      });
+    } catch (err) {
+      console.warn('Gagal sinkronisasi reset password ke server:', err);
     }
 
     return { success: true };
@@ -753,7 +873,12 @@ class TourCostStore {
     return { success: true };
   }
 
-  public addUser(name: string, email: string, role: UserRole): { success: boolean; error?: string } {
+  public addUser(
+    name: string,
+    email: string,
+    role: UserRole,
+    password: string = 'password123'
+  ): { success: boolean; error?: string } {
     if (!this.isSuperAdmin()) {
       return { success: false, error: 'Hanya Super Admin yang dapat menambah pengguna baru.' };
     }
@@ -764,6 +889,7 @@ class TourCostStore {
       email,
       role,
       is_active: true,
+      password: password || 'password123',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
